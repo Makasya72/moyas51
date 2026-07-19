@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Моя смена</title>
+  <rect width="512" height="512" rx="112" fill="#171717"/>
+  <circle cx="256" cy="250" r="150" fill="#ffe045"/>
+  <circle cx="256" cy="250" r="118" fill="#f7f6f1" stroke="#171717" stroke-width="18"/>
+  <path d="M256 164v92l68 42" fill="none" stroke="#171717" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M165 79h182" stroke="#ffe045" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="256" cy="250" r="14" fill="#171717"/>
+  <path d="M159 406h194" stroke="#f7f6f1" stroke-width="22" stroke-linecap="round"/>
+</svg>

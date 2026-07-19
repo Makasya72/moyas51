@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="Моя смена">
+  <rect width="192" height="192" rx="42" fill="#171717"/>
+  <circle cx="96" cy="94" r="56" fill="#ffe045"/>
+  <circle cx="96" cy="94" r="44" fill="#f7f6f1" stroke="#171717" stroke-width="7"/>
+  <path d="M96 62v34l25 16" fill="none" stroke="#171717" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62 30h68" stroke="#ffe045" stroke-width="11" stroke-linecap="round"/>
+  <circle cx="96" cy="94" r="5" fill="#171717"/>
+  <path d="M60 152h72" stroke="#f7f6f1" stroke-width="8" stroke-linecap="round"/>
+</svg>

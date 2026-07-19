@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+.moya-smena.pid
+.moya-smena.stdout.log
+.moya-smena.stderr.log
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+Thumbs.db
