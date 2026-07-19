@@ -59,7 +59,7 @@ export function makeShift(overrides: Partial<Shift> = {}): Shift {
     breaks: [],
     earnings: {
       baseBoSubunits: null,
-      boRateKopecks: 80,
+      boRateSubkopecks: 8_696,
       baseKopecks: 0,
       bonusKopecks: 0,
       deductionKopecks: 0,

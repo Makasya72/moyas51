@@ -1,5 +1,6 @@
 import Dexie from 'dexie'
 import {
+  boRateSubkopecksToRubles,
   boSubunitsToBo,
   calculateEarnings,
   calculateShiftMetrics,
@@ -506,7 +507,7 @@ export class MoyaSmenaRepository {
       'Переработка, мин',
       'Недоработка, мин',
       'Количество БО',
-      'Ставка за 1 БО, коп',
+      'Ставка за 1 БО, ₽',
       'Начислено за БО, коп',
       'Основная сумма, коп',
       'Премия, коп',
@@ -532,7 +533,9 @@ export class MoyaSmenaRepository {
         shift.earnings.baseBoSubunits === null
           ? ''
           : String(boSubunitsToBo(shift.earnings.baseBoSubunits)).replace('.', ','),
-        shift.earnings.boRateKopecks,
+        boRateSubkopecksToRubles(
+          shift.earnings.boRateSubkopecks,
+        ).toFixed(4).replace('.', ','),
         shift.earnings.baseBoSubunits === null ? '' : shift.earnings.baseKopecks,
         shift.earnings.baseKopecks,
         shift.earnings.bonusKopecks,

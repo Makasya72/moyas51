@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import { createLegacyShiftForMigration } from '../domain/import-validation'
-import { BO_RATE_KOPECKS } from '../domain/calculations'
+import { calculateEarningsFromBoSubunits } from '../domain/calculations'
+import { BO_RATE_SUBKOPECKS } from '../domain/types'
 import type {
   MetaRecord,
   SettingsRecord,
@@ -9,7 +10,7 @@ import type {
 } from '../domain/types'
 
 export const DATABASE_NAME = 'moya-smena'
-export const DATABASE_VERSION = 4
+export const DATABASE_VERSION = 5
 export const ACTIVE_SHIFT_META_KEY = 'activeShiftId'
 
 export class MoyaSmenaDatabase extends Dexie {
@@ -94,7 +95,7 @@ export class MoyaSmenaDatabase extends Dexie {
         })
       })
 
-    this.version(DATABASE_VERSION)
+    this.version(4)
       .stores({
         shifts:
           '&id,status,activity,startedAt,endedAt,updatedAt,[status+updatedAt]',
@@ -112,8 +113,51 @@ export class MoyaSmenaDatabase extends Dexie {
             const record = earnings as Record<string, unknown>
             if (!('baseBoSubunits' in record)) record.baseBoSubunits = null
             if (!('boRateKopecks' in record)) {
-              record.boRateKopecks = BO_RATE_KOPECKS
+              record.boRateKopecks = 80
             }
+          })
+      })
+
+    this.version(DATABASE_VERSION)
+      .stores({
+        shifts:
+          '&id,status,activity,startedAt,endedAt,updatedAt,[status+updatedAt]',
+        plans: '&id,startAt,updatedAt',
+        settings: '&key,updatedAt',
+        meta: '&key,updatedAt',
+      })
+      .upgrade(async (transaction) => {
+        await transaction
+          .table('shifts')
+          .toCollection()
+          .modify((raw: Record<string, unknown>) => {
+            const earnings = raw.earnings
+            if (typeof earnings !== 'object' || earnings === null) return
+
+            const record = earnings as Record<string, unknown>
+            const baseBoSubunits = record.baseBoSubunits
+            if (
+              typeof baseBoSubunits === 'number' &&
+              Number.isFinite(baseBoSubunits)
+            ) {
+              const normalized = calculateEarningsFromBoSubunits(
+                baseBoSubunits,
+                typeof record.bonusKopecks === 'number'
+                  ? record.bonusKopecks
+                  : 0,
+                typeof record.deductionKopecks === 'number'
+                  ? record.deductionKopecks
+                  : 0,
+                BO_RATE_SUBKOPECKS,
+                record.isBaseEstimated === true,
+              )
+              Object.assign(record, normalized)
+            } else {
+              // Records entered directly in rubles keep their original amount.
+              record.baseBoSubunits = null
+              record.boRateSubkopecks = BO_RATE_SUBKOPECKS
+            }
+            delete record.boRateKopecks
           })
       })
   }

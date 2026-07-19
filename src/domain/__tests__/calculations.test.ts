@@ -170,16 +170,16 @@ describe('расчёты смены и таймера', () => {
 })
 
 describe('деньги и статистика', () => {
-  it('конвертирует БО в рубли по фиксированному курсу 1 БО = 0,8 ₽', () => {
-    expect(boToKopecks(350)).toBe(28_000)
-    expect(kopecksToBo(28_000)).toBe(350)
+  it('конвертирует БО в рубли по точному курсу 1 БО = 0,8696 ₽', () => {
+    expect(boToKopecks(350)).toBe(30_436)
+    expect(kopecksToBo(30_436)).toBe(350)
     expect(calculateEarningsFromBo(350, 10_000, 5_000)).toEqual({
       baseBoSubunits: 3_500_000,
-      boRateKopecks: 80,
-      baseKopecks: 28_000,
+      boRateSubkopecks: 8_696,
+      baseKopecks: 30_436,
       bonusKopecks: 10_000,
       deductionKopecks: 5_000,
-      totalKopecks: 33_000,
+      totalKopecks: 35_436,
       isBaseEstimated: false,
     })
     expect(boToSubunits(350.125)).toBe(3_501_250)
@@ -188,10 +188,16 @@ describe('деньги и статистика', () => {
     expect(calculateEarningsFromBo(0).baseBoSubunits).toBe(0)
   })
 
+  it('округляет начисление за БО до целой копейки', () => {
+    expect(boToKopecks(1)).toBe(87)
+    expect(boToKopecks(0.01)).toBe(1)
+    expect(boToKopecks(350.01)).toBe(30_437)
+  })
+
   it('хранит формулу денег в целых копейках', () => {
     expect(calculateEarnings(125_050, 10_001, 5_051)).toEqual({
       baseBoSubunits: null,
-      boRateKopecks: 80,
+      boRateSubkopecks: 8_696,
       baseKopecks: 125_050,
       bonusKopecks: 10_001,
       deductionKopecks: 5_051,

@@ -328,7 +328,7 @@ export function updateShiftEarnings(
         earnings.baseBoSubunits,
         earnings.bonusKopecks,
         earnings.deductionKopecks,
-        earnings.boRateKopecks,
+        earnings.boRateSubkopecks,
         earnings.isBaseEstimated,
       )
   shift.updatedAt = at

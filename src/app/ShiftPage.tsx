@@ -9,7 +9,7 @@ import {
 import type { AppSettings, BreakType, Shift, SupportMetrics } from '../domain'
 import { Dialog } from '../ui/Dialog'
 import { Icon } from '../ui/Icon'
-import { formatBo, formatClock, formatDate, formatDateLong, formatDuration, formatMoney } from '../ui/format'
+import { formatBo, formatBoRate, formatClock, formatDate, formatDateLong, formatDuration, formatMoney } from '../ui/format'
 
 interface ShiftPageProps {
   activeShift: Shift | null
@@ -117,10 +117,11 @@ function SummaryDialog({
     rublesToKopecks(deductionRubles),
     {
       fallbackBaseKopecks: shift.earnings.baseBoSubunits === null ? shift.earnings.baseKopecks : 0,
-      boRateKopecks: shift.earnings.boRateKopecks,
+      boRateSubkopecks: shift.earnings.boRateSubkopecks,
     },
   )
 
+  const boRateLabel = formatBoRate(shift.earnings.boRateSubkopecks)
   const save = async () => {
     setSaving(true)
     setSaveError(null)
@@ -148,7 +149,7 @@ function SummaryDialog({
       open
       wide
       title="Итоги смены"
-      description="Укажите БО за смену — приложение пересчитает их по курсу 1 БО = 0,80 ₽. Данные можно заполнить позже в календаре."
+      description={`Укажите БО за смену — приложение пересчитает их по курсу 1 БО = ${boRateLabel}. Данные можно заполнить позже в календаре.`}
       onClose={onClose}
       footer={<><button className="button button--secondary" type="button" onClick={onClose}>Заполнить позже</button><button className="button button--primary" type="button" onClick={() => void save()} disabled={saving}>{saving ? 'Сохраняем…' : 'Сохранить итог'}</button></>}
     >
@@ -166,8 +167,8 @@ function SummaryDialog({
       </div>
       {saveError && <div className="notice notice--danger" role="alert">{saveError}</div>}
       <div className="form-grid">
-        <div className="field"><label htmlFor="summary-base">Количество БО за смену</label><input id="summary-base" type="number" min="0" step="0.01" inputMode="decimal" value={baseBo} onChange={(event) => setBaseBo(event.target.value)} placeholder="Например, 350" /><span className="field-help">1 БО = 0,80 ₽. Пустое поле можно заполнить позже.</span></div>
-        <div className="field"><span className="field-label">{baseBoValue === null && shift.earnings.baseKopecks > 0 ? 'Ранее указанная сумма' : 'Начислено за БО'}</span><div className="input" aria-live="polite"><strong>{baseBoValue === null && earnings.baseKopecks === 0 ? '—' : formatMoney(earnings.baseKopecks)}</strong></div><span className="field-help">{baseBoValue === null ? (shift.earnings.baseKopecks > 0 ? 'Старая запись в рублях сохранена. Введите БО, чтобы заменить её.' : 'БО пока не указаны') : `${formatBo(baseBoValue)} × 0,80 ₽`}</span></div>
+        <div className="field"><label htmlFor="summary-base">Количество БО за смену</label><input id="summary-base" type="number" min="0" step="0.01" inputMode="decimal" value={baseBo} onChange={(event) => setBaseBo(event.target.value)} placeholder="Например, 350" /><span className="field-help">1 БО = {boRateLabel}. Пустое поле можно заполнить позже.</span></div>
+        <div className="field"><span className="field-label">{baseBoValue === null && shift.earnings.baseKopecks > 0 ? 'Ранее указанная сумма' : 'Начислено за БО'}</span><div className="input" aria-live="polite"><strong>{baseBoValue === null && earnings.baseKopecks === 0 ? '—' : formatMoney(earnings.baseKopecks)}</strong></div><span className="field-help">{baseBoValue === null ? (shift.earnings.baseKopecks > 0 ? 'Старая запись в рублях сохранена. Введите БО, чтобы заменить её.' : 'БО пока не указаны') : `${formatBo(baseBoValue)} × ${boRateLabel}`}</span></div>
         <div className="field"><label htmlFor="summary-bonus">Премия / доплата, ₽</label><input id="summary-bonus" type="number" min="0" step="0.01" inputMode="decimal" value={bonusRubles} onChange={(event) => setBonusRubles(event.target.value)} placeholder="0" /></div>
         <div className="field"><label htmlFor="summary-deduction">Удержание, ₽</label><input id="summary-deduction" type="number" min="0" step="0.01" inputMode="decimal" value={deductionRubles} onChange={(event) => setDeductionRubles(event.target.value)} placeholder="0" /></div>
         <div className="field"><span className="field-label">Итоговый заработок</span><div className="input" aria-live="polite"><strong>{formatMoney(earnings.totalKopecks)}</strong></div><span className="field-help">Начисление за БО + премия − удержание</span></div>

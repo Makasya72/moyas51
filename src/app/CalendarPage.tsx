@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { boSubunitsToBo, calculateEarningsFromBo, calculateShiftMetrics, createEmptyEarnings, createEmptySupportMetrics, HOUR_MS, MINUTE_MS } from '../domain'
+import { BO_RATE_SUBKOPECKS, boSubunitsToBo, calculateEarningsFromBo, calculateShiftMetrics, createEmptyEarnings, createEmptySupportMetrics, HOUR_MS, MINUTE_MS } from '../domain'
 import type { AppSettings, BreakType, Shift, ShiftBreak } from '../domain'
 import { Dialog } from '../ui/Dialog'
 import { Icon } from '../ui/Icon'
 import {
   formatClock,
   formatBo,
+  formatBoRate,
   formatDate,
   formatDuration,
   formatMoney,
@@ -43,7 +44,7 @@ interface ShiftDraft {
   extendByBreaks: boolean
   baseBo: string
   legacyBaseKopecks: number
-  boRateKopecks: number
+  boRateSubkopecks: number
   bonusRubles: string
   deductionRubles: string
   note: string
@@ -73,7 +74,7 @@ function newDraft(day: number, settings: AppSettings, mode: ShiftDraft['mode']):
     endAt: mode === 'completed' ? toLocalDateTimeInput(end.getTime()) : '',
     plannedHours: settings.standardShiftDurationMs / HOUR_MS,
     extendByBreaks: settings.extendShiftByBreaks,
-    baseBo: '', legacyBaseKopecks: 0, boRateKopecks: 80, bonusRubles: '', deductionRubles: '', note: '', breaks: [],
+    baseBo: '', legacyBaseKopecks: 0, boRateSubkopecks: BO_RATE_SUBKOPECKS, bonusRubles: '', deductionRubles: '', note: '', breaks: [],
     handledRequests: '', chats: '', calls: '', qualityScore: '', averageResponseMinutes: '', complexCases: '', learningNote: '', summaryNote: '',
     createdAt: Date.now(),
   }
@@ -90,7 +91,7 @@ function draftFromShift(shift: Shift): ShiftDraft {
     extendByBreaks: shift.extendByBreaks,
     baseBo: shift.earnings.baseBoSubunits === null ? '' : String(boSubunitsToBo(shift.earnings.baseBoSubunits)),
     legacyBaseKopecks: shift.earnings.baseBoSubunits === null ? shift.earnings.baseKopecks : 0,
-    boRateKopecks: shift.earnings.boRateKopecks,
+    boRateSubkopecks: shift.earnings.boRateSubkopecks,
     bonusRubles: shift.earnings.bonusKopecks ? String(shift.earnings.bonusKopecks / 100) : '',
     deductionRubles: shift.earnings.deductionKopecks ? String(shift.earnings.deductionKopecks / 100) : '',
     note: shift.note,
@@ -154,7 +155,7 @@ function shiftFromDraft(draft: ShiftDraft, settings: AppSettings): Shift {
       rubles(draft.deductionRubles),
       {
         fallbackBaseKopecks: draft.legacyBaseKopecks,
-        boRateKopecks: draft.boRateKopecks,
+        boRateSubkopecks: draft.boRateSubkopecks,
       },
     ),
     support, note: draft.note, createdAt: draft.createdAt, updatedAt: Date.now(),
@@ -172,6 +173,7 @@ function ShiftEditor({ draft, settings, onChange, onClose, onSave }: { draft: Sh
   const updatePause = (index: number, patch: Partial<PauseDraft>) => set('breaks', draft.breaks.map((pause, pauseIndex) => pauseIndex === index ? { ...pause, ...patch } : pause))
   const estimated = draft.mode === 'completed' ? (() => { try { return shiftFromDraft(draft, settings) } catch { return null } })() : null
   const enteredBo = draft.baseBo.trim() === '' ? null : Math.max(0, Number(draft.baseBo.replace(',', '.')) || 0)
+  const boRateLabel = formatBoRate(draft.boRateSubkopecks)
 
   return (
     <Dialog open wide title={draft.originalStatus ? 'Редактировать смену' : draft.mode === 'planned' ? 'Запланировать смену' : 'Добавить смену'} description="Все изменения сразу попадут в календарь, финансы и статистику." onClose={onClose} footer={<><button className="button button--secondary" type="button" onClick={onClose}>Отмена</button><button className="button button--primary" type="button" onClick={onSave}>Сохранить</button></>}>
@@ -194,8 +196,8 @@ function ShiftEditor({ draft, settings, onChange, onClose, onSave }: { draft: Sh
           <button className="button button--ghost button--small" style={{ marginTop: 10 }} type="button" onClick={() => set('breaks', draft.breaks.filter((_, pauseIndex) => pauseIndex !== index))}><Icon name="trash" />Удалить перерыв</button>
         </div>)}</div>}
         <div className="form-grid" style={{ marginTop: 24 }}>
-          <div className="field"><label htmlFor="edit-base">Количество БО за смену</label><input id="edit-base" type="number" min="0" step="0.01" inputMode="decimal" value={draft.baseBo} onChange={(event) => set('baseBo', event.target.value)} placeholder="Например, 350" /><span className="field-help">1 БО = 0,80 ₽</span></div>
-          <div className="field"><span className="field-label">{enteredBo === null && draft.legacyBaseKopecks > 0 ? 'Ранее указанная сумма' : 'Начислено за БО'}</span><div className="input"><strong>{enteredBo === null && draft.legacyBaseKopecks === 0 ? '—' : estimated ? formatMoney(estimated.earnings.baseKopecks) : '—'}</strong></div><span className="field-help">{enteredBo === null ? (draft.legacyBaseKopecks > 0 ? 'Старая сумма сохранена до ввода БО' : 'БО пока не указаны') : `${formatBo(enteredBo)} × 0,80 ₽`}</span></div>
+          <div className="field"><label htmlFor="edit-base">Количество БО за смену</label><input id="edit-base" type="number" min="0" step="0.01" inputMode="decimal" value={draft.baseBo} onChange={(event) => set('baseBo', event.target.value)} placeholder="Например, 350" /><span className="field-help">1 БО = {boRateLabel}</span></div>
+          <div className="field"><span className="field-label">{enteredBo === null && draft.legacyBaseKopecks > 0 ? 'Ранее указанная сумма' : 'Начислено за БО'}</span><div className="input"><strong>{enteredBo === null && draft.legacyBaseKopecks === 0 ? '—' : estimated ? formatMoney(estimated.earnings.baseKopecks) : '—'}</strong></div><span className="field-help">{enteredBo === null ? (draft.legacyBaseKopecks > 0 ? 'Старая сумма сохранена до ввода БО' : 'БО пока не указаны') : `${formatBo(enteredBo)} × ${boRateLabel}`}</span></div>
           <div className="field"><label htmlFor="edit-bonus">Премия / доплата, ₽</label><input id="edit-bonus" type="number" min="0" step="0.01" inputMode="decimal" value={draft.bonusRubles} onChange={(event) => set('bonusRubles', event.target.value)} /></div>
           <div className="field"><label htmlFor="edit-deduction">Удержание, ₽</label><input id="edit-deduction" type="number" min="0" step="0.01" inputMode="decimal" value={draft.deductionRubles} onChange={(event) => set('deductionRubles', event.target.value)} /></div>
           <div className="field"><span className="field-label">Итоговый заработок</span><div className="input"><strong>{estimated ? formatMoney(estimated.earnings.totalKopecks) : '—'}</strong></div><span className="field-help">Начисление за БО + премия − удержание</span></div>

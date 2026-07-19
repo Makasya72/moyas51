@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { BO_RATE_SUBKOPECKS } from '../domain'
 import type { AppSettings, ImportMode, ImportPreview } from '../domain'
 import { isDocumentPictureInPictureSupported, type PwaCapability } from '../platform'
 import { Dialog } from '../ui/Dialog'
 import { Icon } from '../ui/Icon'
-import { formatDate, formatMoney } from '../ui/format'
+import { formatBoRate, formatDate, formatMoney } from '../ui/format'
 
 interface SettingsPageProps {
   settings: AppSettings
@@ -102,7 +103,7 @@ export function SettingsPage(props: SettingsPageProps) {
         </div></div>
 
         <div className="card settings-section"><div className="section-title"><div><p className="eyebrow">БО, рубли и показатели</p><h2>Финансы</h2></div><Icon name="chart" width="22" /></div><div className="settings-list">
-          <div className="notice notice--success"><strong>Курс БО: 1 БО = 0,80 ₽</strong><br />Используется для расчёта основного начисления за смену.</div>
+          <div className="notice notice--success"><strong>Курс БО: 1 БО = {formatBoRate(BO_RATE_SUBKOPECKS)}</strong><br />Используется для расчёта основного начисления за смену.</div>
           <div className="field"><label htmlFor="hour-rate">Справочная почасовая ставка, ₽</label><input id="hour-rate" type="number" min="0" step="0.01" value={draft.hourlyRateKopecks === null ? '' : draft.hourlyRateKopecks / 100} onChange={(event) => patch('hourlyRateKopecks', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} /><span className="field-help">Не заменяет расчёт по БО и используется только для сравнения.</span></div>
           <div className="field"><label htmlFor="month-goal">Финансовая цель на месяц, ₽</label><input id="month-goal" type="number" min="0" step="0.01" value={draft.monthlyGoalKopecks === null ? '' : draft.monthlyGoalKopecks / 100} onChange={(event) => patch('monthlyGoalKopecks', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} />{draft.monthlyGoalKopecks !== null && <span className="field-help">Цель: {formatMoney(draft.monthlyGoalKopecks)}</span>}</div>
           <Switch checked={draft.supportMetricsEnabled} onChange={(value) => patch('supportMetricsEnabled', value)} title="Итоги работы поддержки" description="Обращения, чаты, звонки и оценка качества" />

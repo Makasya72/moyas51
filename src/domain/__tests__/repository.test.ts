@@ -185,7 +185,7 @@ describe('Dexie-репозиторий', () => {
       'paid',
       {
         baseBoSubunits: null,
-        boRateKopecks: 80,
+        boRateSubkopecks: 8_696,
         baseKopecks: 100_000,
         bonusKopecks: 15_000,
         deductionKopecks: 4_000,
@@ -290,7 +290,7 @@ describe('Dexie-репозиторий', () => {
     expect(csv).toContain('"текст; ""кавычки"""')
     expect(csv).toContain('Итого, коп')
     expect(csv).toContain('Количество БО')
-    expect(csv).toContain('350;80;28000;28000')
+    expect(csv).toContain('350;0,8696;30436;30436')
   })
 
   it('рассылает локальные события после изменения данных', async () => {
@@ -328,7 +328,62 @@ describe('Dexie-репозиторий', () => {
     expect(restored?.plannedDurationMs).toBe(12 * HOUR_MS)
     expect(restored?.earnings.totalKopecks).toBe(0)
     expect(restored?.earnings.baseBoSubunits).toBeNull()
-    expect(restored?.earnings.boRateKopecks).toBe(80)
+    expect(restored?.earnings.boRateSubkopecks).toBe(8_696)
+  })
+
+  it('мигрирует курс БО из версии 4, не меняя рублёвую запись', async () => {
+    const legacy = new Dexie(databaseName)
+    legacy.version(4).stores({
+      shifts:
+        '&id,status,activity,startedAt,endedAt,updatedAt,[status+updatedAt]',
+      plans: '&id,startAt,updatedAt',
+      settings: '&key,updatedAt',
+      meta: '&key,updatedAt',
+    })
+
+    const boShift = structuredClone(
+      makeShift({ id: 'legacy-bo' }),
+    ) as unknown as { earnings: Record<string, unknown> }
+    boShift.earnings = {
+      baseBoSubunits: 3_500_000,
+      boRateKopecks: 80,
+      baseKopecks: 28_000,
+      bonusKopecks: 0,
+      deductionKopecks: 0,
+      totalKopecks: 28_000,
+      isBaseEstimated: false,
+    }
+
+    const rubleShift = structuredClone(
+      makeShift({ id: 'legacy-rubles' }),
+    ) as unknown as { earnings: Record<string, unknown> }
+    rubleShift.earnings = {
+      baseBoSubunits: null,
+      boRateKopecks: 80,
+      baseKopecks: 123_456,
+      bonusKopecks: 0,
+      deductionKopecks: 0,
+      totalKopecks: 123_456,
+      isBaseEstimated: false,
+    }
+
+    await legacy.open()
+    await legacy.table('shifts').bulkAdd([boShift, rubleShift])
+    legacy.close()
+
+    const repository = await openRepository()
+    expect((await repository.getShift('legacy-bo'))?.earnings).toMatchObject({
+      baseBoSubunits: 3_500_000,
+      boRateSubkopecks: 8_696,
+      baseKopecks: 30_436,
+      totalKopecks: 30_436,
+    })
+    expect((await repository.getShift('legacy-rubles'))?.earnings).toMatchObject({
+      baseBoSubunits: null,
+      boRateSubkopecks: 8_696,
+      baseKopecks: 123_456,
+      totalKopecks: 123_456,
+    })
   })
 
   it('полная очистка удаляет данные, но восстанавливает безопасные настройки', async () => {

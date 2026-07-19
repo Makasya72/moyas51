@@ -9,6 +9,11 @@ export type DurationMs = number
 export type Kopecks = number
 /** BO are stored as integer ten-thousandths to avoid floating-point drift. */
 export type BoSubunits = number
+/** One rate subkopeck is 1/100 of a kopeck, or 0.0001 ruble. */
+export type RateSubkopecks = number
+
+export const SUBKOPECKS_PER_KOPECK = 100
+export const BO_RATE_SUBKOPECKS = 8_696
 
 export type ShiftStatus = 'planned' | 'active' | 'completed'
 export type ShiftActivity =
@@ -40,8 +45,8 @@ export interface ShiftBreak {
 export interface ShiftEarnings {
   /** Null means that this legacy/manual record was entered directly in rubles. */
   baseBoSubunits: BoSubunits | null
-  /** Conversion rate captured with the shift, in kopecks for one BO. */
-  boRateKopecks: Kopecks
+  /** Conversion rate captured with the shift, in 1/100 kopeck for one BO. */
+  boRateSubkopecks: RateSubkopecks
   baseKopecks: Kopecks
   bonusKopecks: Kopecks
   deductionKopecks: Kopecks
@@ -205,7 +210,7 @@ export interface MetaRecord {
 }
 
 export const BACKUP_FORMAT = 'moya-smena-backup' as const
-export const BACKUP_VERSION = 3 as const
+export const BACKUP_VERSION = 4 as const
 
 export interface BackupDocument {
   format: typeof BACKUP_FORMAT

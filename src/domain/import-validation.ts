@@ -4,7 +4,6 @@ import {
   calculateEarnings,
   calculateEarningsFromBoSubunits,
   calculatePlannedEndAt,
-  BO_RATE_KOPECKS,
 } from './calculations'
 import {
   createDefaultSettings,
@@ -24,7 +23,11 @@ import type {
   SupportMetrics,
   Timestamp,
 } from './types'
-import { BACKUP_FORMAT, BACKUP_VERSION } from './types'
+import {
+  BACKUP_FORMAT,
+  BACKUP_VERSION,
+  BO_RATE_SUBKOPECKS,
+} from './types'
 
 export class ImportValidationError extends Error {
   readonly issues: string[]
@@ -332,6 +335,14 @@ export function normalizeShift(
   const rawBoSubunits = earningsSource.baseBoSubunits
   const hasBo = rawBoSubunits !== undefined && rawBoSubunits !== null
   const isBaseEstimated = booleanValue(earningsSource.isBaseEstimated, false)
+  const importedRate = hasBo
+    ? optionalNumber(
+        earningsSource.boRateSubkopecks ?? earningsSource.boRateKopecks,
+        BO_RATE_SUBKOPECKS,
+        `${path}.earnings.boRateSubkopecks`,
+        { min: 1, max: Number.MAX_SAFE_INTEGER, integer: true },
+      )
+    : BO_RATE_SUBKOPECKS
   const earnings = hasBo
     ? calculateEarningsFromBoSubunits(
         optionalNumber(
@@ -342,12 +353,7 @@ export function normalizeShift(
         ),
         bonusKopecks,
         deductionKopecks,
-        optionalNumber(
-          earningsSource.boRateKopecks,
-          BO_RATE_KOPECKS,
-          `${path}.earnings.boRateKopecks`,
-          { min: 1, max: Number.MAX_SAFE_INTEGER, integer: true },
-        ),
+        BO_RATE_SUBKOPECKS,
         isBaseEstimated,
       )
     : calculateEarnings(
@@ -356,6 +362,9 @@ export function normalizeShift(
         deductionKopecks,
         isBaseEstimated,
       )
+  if (hasBo && importedRate !== BO_RATE_SUBKOPECKS) {
+    warn(`${path}.earnings: курс БО обновлён до 0,8696 ₽`)
+  }
   if (hasBo && baseKopecks !== earnings.baseKopecks) {
     warn(`${path}.earnings: начисление за БО пересчитано`)
   }
@@ -581,10 +590,15 @@ export function validateAndNormalizeBackup(
   if (format !== BACKUP_FORMAT) {
     issues.push(`backup.format: ожидалось «${BACKUP_FORMAT}»`)
   }
-  if (version !== 1 && version !== 2 && version !== BACKUP_VERSION) {
+  if (
+    version !== 1 &&
+    version !== 2 &&
+    version !== 3 &&
+    version !== BACKUP_VERSION
+  ) {
     issues.push(`backup.version: версия ${String(version)} не поддерживается`)
   }
-  if (version === 1 || version === 2) {
+  if (version === 1 || version === 2 || version === 3) {
     warnings.push(`Резервная копия версии ${version} будет обновлена до версии ${BACKUP_VERSION}`)
   }
   if (!Array.isArray(source.shifts)) issues.push('backup.shifts: ожидался массив')

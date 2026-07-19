@@ -1,10 +1,12 @@
 import { HOUR_MS } from './defaults'
+import { BO_RATE_SUBKOPECKS, SUBKOPECKS_PER_KOPECK } from './types'
 import type {
   BoSubunits,
   BreakTimerSnapshot,
   DateRange,
   DurationMs,
   Kopecks,
+  RateSubkopecks,
   RuntimeShiftStatus,
   Shift,
   ShiftBreak,
@@ -45,9 +47,6 @@ function integerKopecks(value: number): Kopecks {
 
 /** Fixed conversion used for new earnings records. */
 export const BO_SCALE = 10_000
-export const BO_RATE_KOPECKS = 80
-/** Kept as a descriptive alias for integrations and older callers. */
-export const BO_TO_KOPECKS = BO_RATE_KOPECKS
 
 export function boToSubunits(bo: number): BoSubunits {
   return Math.round(finite(bo) * BO_SCALE)
@@ -59,19 +58,38 @@ export function boSubunitsToBo(subunits: BoSubunits): number {
 
 export function boSubunitsToKopecks(
   subunits: BoSubunits,
-  rateKopecks: Kopecks = BO_RATE_KOPECKS,
+  rateSubkopecks: RateSubkopecks = BO_RATE_SUBKOPECKS,
 ): Kopecks {
-  return integerKopecks(
-    (Math.round(finite(subunits)) * integerKopecks(rateKopecks)) / BO_SCALE,
-  )
+  const normalizedSubunits = Math.max(0, Math.round(finite(subunits)))
+  const normalizedRate = Math.max(0, Math.round(finite(rateSubkopecks)))
+  const denominator = BigInt(BO_SCALE * SUBKOPECKS_PER_KOPECK)
+  const numerator = BigInt(normalizedSubunits) * BigInt(normalizedRate)
+  const rounded = (numerator + denominator / 2n) / denominator
+  const result = Number(rounded)
+  if (!Number.isSafeInteger(result)) {
+    throw new RangeError('Начисление за БО выходит за безопасный диапазон')
+  }
+  return result
 }
 
 export function boToKopecks(bo: number): Kopecks {
   return boSubunitsToKopecks(boToSubunits(bo))
 }
 
-export function kopecksToBo(kopecks: Kopecks): number {
-  return integerKopecks(kopecks) / BO_RATE_KOPECKS
+export function kopecksToBo(
+  kopecks: Kopecks,
+  rateSubkopecks: RateSubkopecks = BO_RATE_SUBKOPECKS,
+): number {
+  return (
+    (integerKopecks(kopecks) * SUBKOPECKS_PER_KOPECK) /
+    Math.round(finite(rateSubkopecks))
+  )
+}
+
+export function boRateSubkopecksToRubles(
+  rateSubkopecks: RateSubkopecks,
+): number {
+  return Math.round(finite(rateSubkopecks)) / 10_000
 }
 
 export function calculatePlannedEndAt(
@@ -93,7 +111,7 @@ export function calculateEarnings(
 
   return {
     baseBoSubunits: null,
-    boRateKopecks: BO_RATE_KOPECKS,
+    boRateSubkopecks: BO_RATE_SUBKOPECKS,
     baseKopecks: base,
     bonusKopecks: bonus,
     deductionKopecks: deduction,
@@ -109,7 +127,7 @@ export function calculateEarningsFromBo(
   options: {
     fallbackBaseKopecks?: Kopecks
     isBaseEstimated?: boolean
-    boRateKopecks?: Kopecks
+    boRateSubkopecks?: RateSubkopecks
   } = {},
 ): ShiftEarnings {
   if (baseBo === null) {
@@ -124,7 +142,7 @@ export function calculateEarningsFromBo(
     boToSubunits(nonNegative(baseBo)),
     bonusKopecks,
     deductionKopecks,
-    options.boRateKopecks ?? BO_RATE_KOPECKS,
+    options.boRateSubkopecks ?? BO_RATE_SUBKOPECKS,
     options.isBaseEstimated ?? false,
   )
 }
@@ -133,11 +151,11 @@ export function calculateEarningsFromBoSubunits(
   baseBoSubunits: BoSubunits,
   bonusKopecks = 0,
   deductionKopecks = 0,
-  boRateKopecks: Kopecks = BO_RATE_KOPECKS,
+  boRateSubkopecks: RateSubkopecks = BO_RATE_SUBKOPECKS,
   isBaseEstimated = false,
 ): ShiftEarnings {
   const subunits = Math.max(0, Math.round(finite(baseBoSubunits)))
-  const rate = Math.max(0, integerKopecks(boRateKopecks))
+  const rate = Math.max(0, Math.round(finite(boRateSubkopecks)))
   const earnings = calculateEarnings(
     boSubunitsToKopecks(subunits, rate),
     bonusKopecks,
@@ -147,7 +165,7 @@ export function calculateEarningsFromBoSubunits(
   return {
     ...earnings,
     baseBoSubunits: subunits,
-    boRateKopecks: rate,
+    boRateSubkopecks: rate,
   }
 }
 

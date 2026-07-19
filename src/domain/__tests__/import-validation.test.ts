@@ -73,7 +73,7 @@ describe('проверка и нормализация импорта', () => {
     legacyShift.earnings.baseKopecks = 28_000
     legacyShift.earnings.totalKopecks = 28_000
     delete legacyShift.earnings.baseBoSubunits
-    delete legacyShift.earnings.boRateKopecks
+    delete legacyShift.earnings.boRateSubkopecks
 
     const preview = validateAndNormalizeBackup(
       backup({ version: 2, shifts: [legacyShift] }),
@@ -90,7 +90,7 @@ describe('проверка и нормализация импорта', () => {
       makeShift({
         earnings: {
           baseBoSubunits: 3_500_000,
-          boRateKopecks: 80,
+          boRateSubkopecks: 8_696,
           baseKopecks: 1,
           bonusKopecks: 0,
           deductionKopecks: 0,
@@ -101,9 +101,31 @@ describe('проверка и нормализация импорта', () => {
       'shift',
       (warning) => warnings.push(warning),
     )
-    expect(normalized.earnings.baseKopecks).toBe(28_000)
-    expect(normalized.earnings.totalKopecks).toBe(28_000)
+    expect(normalized.earnings.baseKopecks).toBe(30_436)
+    expect(normalized.earnings.totalKopecks).toBe(30_436)
     expect(warnings.join(' ')).toContain('начисление за БО пересчитано')
+  })
+
+  it('обновляет курс и пересчитывает БО из резервной копии версии 3', () => {
+    const legacyShift = structuredClone(makeShift()) as unknown as {
+      earnings: Record<string, unknown>
+    }
+    legacyShift.earnings.baseBoSubunits = 3_500_000
+    legacyShift.earnings.boRateKopecks = 80
+    legacyShift.earnings.baseKopecks = 28_000
+    legacyShift.earnings.totalKopecks = 28_000
+    delete legacyShift.earnings.boRateSubkopecks
+
+    const preview = validateAndNormalizeBackup(
+      backup({ version: 3, shifts: [legacyShift] }),
+    )
+    expect(preview.backup.shifts[0].earnings).toMatchObject({
+      baseBoSubunits: 3_500_000,
+      boRateSubkopecks: 8_696,
+      baseKopecks: 30_436,
+      totalKopecks: 30_436,
+    })
+    expect(preview.warnings.join(' ')).toContain('курс БО обновлён до 0,8696 ₽')
   })
 
   it('отклоняет повторяющиеся идентификаторы смен', () => {
@@ -158,7 +180,7 @@ describe('проверка и нормализация импорта', () => {
       makeShift({
         earnings: {
           baseBoSubunits: null,
-          boRateKopecks: 80,
+          boRateSubkopecks: 8_696,
           baseKopecks: 100_000,
           bonusKopecks: 20_000,
           deductionKopecks: 5_000,

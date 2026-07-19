@@ -1,7 +1,8 @@
-import type {
-  AppSettings,
-  ShiftEarnings,
-  SupportMetrics,
+import {
+  BO_RATE_SUBKOPECKS,
+  type AppSettings,
+  type ShiftEarnings,
+  type SupportMetrics,
 } from './types'
 
 export const MINUTE_MS = 60_000
@@ -47,7 +48,7 @@ export function createDefaultSettings(): AppSettings {
 export function createEmptyEarnings(): ShiftEarnings {
   return {
     baseBoSubunits: null,
-    boRateKopecks: 80,
+    boRateSubkopecks: BO_RATE_SUBKOPECKS,
     baseKopecks: 0,
     bonusKopecks: 0,
     deductionKopecks: 0,

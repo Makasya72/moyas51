@@ -326,7 +326,7 @@ describe('фабрики и редактирование', () => {
       makeShift(),
       {
         baseBoSubunits: null,
-        boRateKopecks: 80,
+        boRateSubkopecks: 8_696,
         baseKopecks: 100_000,
         bonusKopecks: 20_000,
         deductionKopecks: 5_000,

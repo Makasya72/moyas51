@@ -3,6 +3,10 @@ const BO_NUMBER = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 4,
 })
+const BO_RATE_NUMBER = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+})
 const MONEY = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
   currency: 'RUB',
@@ -72,6 +76,10 @@ export function formatNumber(value: number): string {
 
 export function formatBo(value: number): string {
   return `${BO_NUMBER.format(value)} БО`
+}
+
+export function formatBoRate(rateSubkopecks: number): string {
+  return `${BO_RATE_NUMBER.format(rateSubkopecks / 10_000)} ₽`
 }
 
 export function toLocalDateTimeInput(timestamp: number | null): string {
