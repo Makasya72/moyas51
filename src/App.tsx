@@ -134,7 +134,7 @@ export function App() {
     if (!controller.activeShift) return
     try {
       if (floating && !floating.isClosed()) { floating.focus(); return }
-      const opened = await openFloatingTimerWindow({ fallback: 'popup', fallbackOnRequestFailure: true, forcePopup: forcePopupNext.current, width: 410, height: 520 })
+      const opened = await openFloatingTimerWindow({ fallback: 'popup', fallbackOnRequestFailure: true, forcePopup: forcePopupNext.current, width: 160, height: 160 })
       forcePopupNext.current = false
       opened.onClose(() => setFloating(null))
       setFloating(opened)
@@ -170,6 +170,6 @@ export function App() {
       </main>
     </div>
     <Toasts messages={toasts} />
-    {floating && floatingShift && !floating.isClosed() && createPortal(<MiniTimer shift={floatingShift} now={now} settings={controller.settings} onResume={() => void controller.resumeWork().catch((reason) => notify('Не удалось завершить перерыв', reason instanceof Error ? reason.message : undefined, 'danger'))} onOpenMain={() => { window.focus(); setPage('shift') }} />, floating.container)}
+    {floating && floatingShift && !floating.isClosed() && createPortal(<MiniTimer shift={floatingShift} now={now} settings={controller.settings} />, floating.container)}
   </>
 }
