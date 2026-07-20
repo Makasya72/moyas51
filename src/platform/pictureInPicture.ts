@@ -87,8 +87,8 @@ export interface FloatingTimerWindow {
   onClose(listener: () => void): () => void
 }
 
-const DEFAULT_WIDTH = 420
-const DEFAULT_HEIGHT = 520
+const DEFAULT_WIDTH = 160
+const DEFAULT_HEIGHT = 160
 const DEFAULT_CONTAINER_ID = 'moya-smena-mini-timer'
 
 export const FALLBACK_LIMITATION =
@@ -269,9 +269,9 @@ function prepareDocument(
   baseStyle.dataset.floatingWindowOwned = 'true'
   baseStyle.textContent = `
     :root { color-scheme: light dark; }
-    html, body { min-width: 280px; min-height: 100%; margin: 0; }
-    body { overflow: auto; }
-    #${options.containerId} { min-height: 100vh; }
+    html, body { width: 100%; height: 100%; min-width: 0 !important; min-height: 0 !important; margin: 0; overflow: hidden !important; }
+    body { background: #191919; }
+    #${options.containerId}, #${options.containerId} .mini-timer { width: 100%; height: 100%; min-height: 0; }
     .floating-window-limitation {
       box-sizing: border-box;
       margin: 0;
@@ -282,11 +282,11 @@ function prepareDocument(
       border-bottom: 1px solid #d4b800;
     }
   `
-  targetDocument.head.append(baseStyle)
-
   const styleTransfer = options.copyStyles
     ? copyDocumentStyles(sourceDocument, targetDocument)
     : { copiedNodes: 0, copiedConstructedSheets: 0, failedSheets: 0 }
+
+  targetDocument.head.append(baseStyle)
 
   if (limitation) {
     const notice = targetDocument.createElement('p')
@@ -304,7 +304,7 @@ function prepareDocument(
 
 function popupFeatures(ownerWindow: Window, width: number, height: number): string {
   const left = Math.max(0, ownerWindow.screenX + ownerWindow.outerWidth - width - 24)
-  const top = Math.max(0, ownerWindow.screenY + 48)
+  const top = Math.max(0, ownerWindow.screenY + ownerWindow.outerHeight - height - 24)
   return [
     'popup=yes',
     `width=${Math.round(width)}`,
@@ -379,8 +379,8 @@ export async function openFloatingTimerWindow(
   options: OpenFloatingTimerOptions = {},
 ): Promise<FloatingTimerWindow> {
   const ownerWindow = resolveWindow(options.ownerWindow)
-  const width = Math.max(280, Math.round(options.width ?? DEFAULT_WIDTH))
-  const height = Math.max(240, Math.round(options.height ?? DEFAULT_HEIGHT))
+  const width = Math.max(160, Math.round(options.width ?? DEFAULT_WIDTH))
+  const height = Math.max(120, Math.round(options.height ?? DEFAULT_HEIGHT))
   const title = options.title ?? 'Моя смена — мини-таймер'
   const containerId = options.containerId ?? DEFAULT_CONTAINER_ID
   const copyStyles = options.copyStyles ?? true
