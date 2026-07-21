@@ -129,6 +129,7 @@ export function App() {
 
   const lastCompleted = useMemo(() => controller.shifts.find((shift) => shift.status === 'completed') ?? null, [controller.shifts])
   const floatingShift: Shift | null = controller.activeShift ?? lastCompleted
+  const activeShiftStatus = getTimerSnapshot(controller.activeShift, now).status
 
   const openFloating = useCallback(async () => {
     if (!controller.activeShift) return
@@ -160,7 +161,7 @@ export function App() {
         <div className="sidebar-foot"><p className="privacy-note">Все данные хранятся локально в вашем браузере.</p></div>
       </aside>
       <main className="app-main" id="main-content">
-        <div className="topbar"><div className="topbar-time"><strong>{formatClock(now, controller.settings.use24HourTime)}</strong><span>{formatDateLong(now)}</span></div><div className="topbar-actions">{controller.activeShift && <span className="status-pill status-pill--active">Смена идёт</span>}{updateReady && <button className="button button--primary button--small" type="button" onClick={() => updateReady()}>Обновить приложение</button>}<button className="icon-button" type="button" onClick={() => setPage('settings')} aria-label="Открыть настройки"><Icon name={controller.settings.theme === 'dark' ? 'moon' : 'sun'} /></button></div></div>
+        <div className="topbar"><div className="topbar-time"><strong>{formatClock(now, controller.settings.use24HourTime)}</strong><span>{formatDateLong(now)}</span></div><div className="topbar-actions">{controller.activeShift && <span className={`status-pill ${activeShiftStatus === 'not_started' ? '' : 'status-pill--active'}`}>{activeShiftStatus === 'not_started' ? 'Смена запланирована' : 'Смена идёт'}</span>}{updateReady && <button className="button button--primary button--small" type="button" onClick={() => updateReady()}>Обновить приложение</button>}<button className="icon-button" type="button" onClick={() => setPage('settings')} aria-label="Открыть настройки"><Icon name={controller.settings.theme === 'dark' ? 'moon' : 'sun'} /></button></div></div>
         {controller.error && <div className="notice notice--danger" style={{ margin: '18px auto 0', width: 'min(1060px, calc(100% - 32px))' }}>{controller.error}</div>}
         {page === 'shift' && <ShiftPage activeShift={controller.activeShift} lastShift={lastCompleted} settings={controller.settings} now={now} busy={controller.busy} onStartShift={controller.startShift} onStartBreak={controller.startBreak} onResumeWork={controller.resumeWork} onFinishShift={controller.finishShift} onSaveShift={controller.saveShift} onOpenFloating={() => void openFloating()} onOpenCalendar={openCalendar} notify={notify} />}
         {page === 'calendar' && <CalendarPage shifts={controller.shifts} settings={controller.settings} focusShiftId={calendarFocus} onSave={controller.saveShift} onDelete={controller.deleteShift} notify={notify} />}
@@ -170,6 +171,6 @@ export function App() {
       </main>
     </div>
     <Toasts messages={toasts} />
-    {floating && floatingShift && !floating.isClosed() && createPortal(<MiniTimer shift={floatingShift} now={now} settings={controller.settings} />, floating.container)}
+    {floating && floatingShift && !floating.isClosed() && createPortal(<MiniTimer shift={floatingShift} now={now} />, floating.container)}
   </>
 }
