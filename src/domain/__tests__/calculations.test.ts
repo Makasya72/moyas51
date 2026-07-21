@@ -167,6 +167,20 @@ describe('расчёты смены и таймера', () => {
       ),
     ).toBe('lunch')
   })
+
+  it('ожидает начала активной смены с будущим временем старта', () => {
+    const startAt = BASE_TIME + HOUR_MS
+    const shift = makeShift({
+      status: 'active',
+      activity: 'work',
+      startedAt: startAt,
+      plannedStartAt: startAt,
+      endedAt: null,
+    })
+
+    expect(deriveRuntimeStatus(shift, BASE_TIME)).toBe('not_started')
+    expect(getTimerSnapshot(shift, BASE_TIME).elapsedMs).toBe(0)
+  })
 })
 
 describe('деньги и статистика', () => {
