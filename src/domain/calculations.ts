@@ -295,6 +295,7 @@ export function deriveRuntimeStatus(
 ): RuntimeShiftStatus {
   if (shift === null || shift.status === 'planned') return 'not_started'
   if (shift.status === 'completed') return 'completed'
+  if (shift.startedAt !== null && at < shift.startedAt) return 'not_started'
   if (shift.activity === 'break' || shift.activity === 'lunch') {
     return shift.activity
   }
