@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createRepository } from '../data'
-import { createDefaultSettings } from '../domain'
+import {
+  createDefaultSettings,
+  getCurrentNightShiftStartAt,
+  NIGHT_SHIFT_DURATION_MS,
+} from '../domain'
 import type { AppSettings, ImportMode, ImportPreview, Shift } from '../domain'
 import type { AppController } from './types'
 
@@ -80,7 +84,16 @@ export function useAppController(): AppController {
     shifts,
     activeShift,
     settings,
-    startShift: (durationMs) => mutate(() => repository.startShift({ plannedDurationMs: durationMs, extendByBreaks: settings.extendShiftByBreaks })),
+    startShift: () => mutate(() => {
+      const now = Date.now()
+      const startAt = getCurrentNightShiftStartAt(now)
+      return repository.startShift({
+        at: startAt,
+        plannedStartAt: startAt,
+        plannedDurationMs: NIGHT_SHIFT_DURATION_MS,
+        extendByBreaks: settings.extendShiftByBreaks,
+      })
+    }),
     startBreak: (type, durationMs) => mutate(() => repository.startBreak({ type, plannedDurationMs: durationMs })),
     resumeWork: () => mutate(() => repository.resumeWork()),
     finishShift: () => mutate(() => repository.finishShift()),

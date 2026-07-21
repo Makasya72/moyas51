@@ -4,9 +4,11 @@ import {
   calculateShiftMetrics,
   boSubunitsToBo,
   createEmptySupportMetrics,
+  getNextNightShiftPause,
   getTimerSnapshot,
+  NIGHT_SHIFT_DURATION_MS,
 } from '../domain'
-import type { AppSettings, BreakType, Shift, SupportMetrics } from '../domain'
+import type { AppSettings, BreakType, ScheduledPause, Shift, SupportMetrics } from '../domain'
 import { Dialog } from '../ui/Dialog'
 import { Icon } from '../ui/Icon'
 import { formatBo, formatBoRate, formatClock, formatDate, formatDateLong, formatDuration, formatMoney } from '../ui/format'
@@ -17,7 +19,7 @@ interface ShiftPageProps {
   settings: AppSettings
   now: number
   busy: boolean
-  onStartShift: (durationMs: number) => Promise<Shift>
+  onStartShift: () => Promise<Shift>
   onStartBreak: (type: BreakType, durationMs: number) => Promise<Shift>
   onResumeWork: () => Promise<Shift>
   onFinishShift: () => Promise<Shift>
@@ -27,7 +29,6 @@ interface ShiftPageProps {
   notify: (title: string, description?: string, tone?: 'success' | 'warning' | 'danger') => void
 }
 
-const HOUR = 3_600_000
 const MINUTE = 60_000
 
 const STATUS_LABELS = {
@@ -39,11 +40,15 @@ const STATUS_LABELS = {
   overtime: 'Переработка',
 } as const
 
-function Timeline({ shift, use24Hour }: { shift: Shift; use24Hour: boolean }) {
+function Timeline({ shift, use24Hour, now }: { shift: Shift; use24Hour: boolean; now: number }) {
   const events = useMemo(() => {
     const result: { at: number; title: string; detail: string }[] = []
     if (shift.startedAt !== null) {
-      result.push({ at: shift.startedAt, title: 'Смена начата', detail: 'Рабочее время' })
+      result.push({
+        at: shift.startedAt,
+        title: shift.startedAt > now ? 'Смена запланирована' : 'Смена начата',
+        detail: shift.startedAt > now ? 'Ожидание начала' : 'Рабочее время',
+      })
     }
     for (const pause of shift.breaks) {
       result.push({
@@ -63,7 +68,7 @@ function Timeline({ shift, use24Hour }: { shift: Shift; use24Hour: boolean }) {
       result.push({ at: shift.endedAt, title: 'Смена завершена', detail: 'Результат сохранён' })
     }
     return result.sort((left, right) => right.at - left.at)
-  }, [shift])
+  }, [now, shift])
 
   return (
     <div className="timeline">
@@ -191,14 +196,14 @@ function SummaryDialog({
 
 export function ShiftPage(props: ShiftPageProps) {
   const { activeShift, lastShift, settings, now, busy } = props
-  const [durationHours, setDurationHours] = useState(settings.standardShiftDurationMs / HOUR)
   const [breakType, setBreakType] = useState<BreakType | null>(null)
   const [breakMinutes, setBreakMinutes] = useState(15)
   const [finishOpen, setFinishOpen] = useState(false)
   const [summaryShift, setSummaryShift] = useState<Shift | null>(null)
   const [offerFloating, setOfferFloating] = useState(false)
+  const [scheduledPausePrompt, setScheduledPausePrompt] = useState<ScheduledPause | null>(null)
+  const [dismissedScheduledPauseIds, setDismissedScheduledPauseIds] = useState<string[]>([])
 
-  useEffect(() => setDurationHours(settings.standardShiftDurationMs / HOUR), [settings.standardShiftDurationMs])
   useEffect(() => {
     if (!breakType) return
     setBreakMinutes((breakType === 'lunch' ? settings.standardLunchDurationMs : settings.standardBreakDurationMs) / MINUTE)
@@ -207,10 +212,46 @@ export function ShiftPage(props: ShiftPageProps) {
   const snapshot = getTimerSnapshot(activeShift, now)
   const activeBreak = snapshot.activeBreak
   const breakOvertime = (activeBreak?.overtimeMs ?? 0) > 0
+  const waitingForShiftStart = activeShift !== null && activeShift.startedAt !== null && now < activeShift.startedAt
+  const nextScheduledPause = activeShift && !activeBreak ? getNextNightShiftPause(activeShift, now) : null
+  const nextScheduledPauseName = nextScheduledPause?.type === 'lunch' ? 'обеда' : 'перерыва'
+
+  useEffect(() => {
+    setScheduledPausePrompt(null)
+    setDismissedScheduledPauseIds([])
+  }, [activeShift?.id])
+
+  useEffect(() => {
+    if (scheduledPausePrompt && (activeBreak || now >= scheduledPausePrompt.endAt)) {
+      setScheduledPausePrompt(null)
+    }
+  }, [activeBreak, now, scheduledPausePrompt])
+
+  useEffect(() => {
+    if (
+      !nextScheduledPause ||
+      activeBreak ||
+      breakType ||
+      nextScheduledPause.startAt > now ||
+      dismissedScheduledPauseIds.includes(nextScheduledPause.id) ||
+      scheduledPausePrompt?.id === nextScheduledPause.id
+    ) return
+
+    setScheduledPausePrompt(nextScheduledPause)
+  }, [
+    activeBreak,
+    breakType,
+    dismissedScheduledPauseIds,
+    nextScheduledPause,
+    now,
+    scheduledPausePrompt?.id,
+  ])
   const timerLabel = activeBreak
     ? breakOvertime
       ? `${activeBreak.type === 'lunch' ? 'Обед' : 'Перерыв'} превышен`
       : 'Вернуться через'
+    : waitingForShiftStart
+      ? 'До начала смены'
     : snapshot.status === 'overtime'
       ? 'Переработка'
       : activeShift
@@ -218,7 +259,18 @@ export function ShiftPage(props: ShiftPageProps) {
         : 'Готовы начать?'
   const timerValue = activeBreak
     ? breakOvertime ? activeBreak.overtimeMs : activeBreak.remainingMs
-    : snapshot.status === 'overtime' ? snapshot.overtimeMs : activeShift ? snapshot.remainingMs : durationHours * HOUR
+    : waitingForShiftStart && activeShift?.startedAt !== null ? activeShift.startedAt - now
+    : snapshot.status === 'overtime' ? snapshot.overtimeMs : activeShift ? snapshot.remainingMs : NIGHT_SHIFT_DURATION_MS
+
+  const timerSubtitle = activeBreak
+    ? breakOvertime
+      ? 'Пора вернуться к работе'
+      : `До возвращения — ${formatDuration(activeBreak.remainingMs)}`
+    : nextScheduledPause
+      ? nextScheduledPause.startAt <= now
+        ? `Время: ${nextScheduledPause.label.toLowerCase()} — подтвердите запуск`
+        : `До ${nextScheduledPauseName} — ${formatDuration(nextScheduledPause.startAt - now)}`
+      : 'Перерывы по расписанию завершены'
 
   const openBreak = (type: BreakType) => setBreakType(type)
   const startBreak = async () => {
@@ -227,6 +279,25 @@ export function ShiftPage(props: ShiftPageProps) {
       await props.onStartBreak(breakType, Math.round(breakMinutes * MINUTE))
       setBreakType(null)
       props.notify(breakType === 'lunch' ? 'Обед начат' : 'Перерыв начат', `Вернуться в ${formatClock(Date.now() + breakMinutes * MINUTE, settings.use24HourTime)}`)
+    } catch (reason) {
+      props.notify('Не удалось начать перерыв', reason instanceof Error ? reason.message : undefined, 'danger')
+    }
+  }
+  const startScheduledPause = async () => {
+    if (!scheduledPausePrompt) return
+    const durationMs = scheduledPausePrompt.endAt - Date.now()
+    if (durationMs <= 0) {
+      setScheduledPausePrompt(null)
+      return
+    }
+
+    try {
+      await props.onStartBreak(scheduledPausePrompt.type, durationMs)
+      props.notify(
+        scheduledPausePrompt.label === 'Обед' ? 'Обед начат' : 'Перерыв начат',
+        `По расписанию до ${formatClock(scheduledPausePrompt.endAt, settings.use24HourTime)}`,
+      )
+      setScheduledPausePrompt(null)
     } catch (reason) {
       props.notify('Не удалось начать перерыв', reason instanceof Error ? reason.message : undefined, 'danger')
     }
@@ -242,8 +313,8 @@ export function ShiftPage(props: ShiftPageProps) {
   }
   const startShift = async () => {
     try {
-      await props.onStartShift(durationHours * HOUR)
-      props.notify('Смена начата', `Плановая длительность ${durationHours} ч.`)
+      await props.onStartShift()
+      props.notify('Смена начата', 'Ночная смена: с 21:00 до 09:00.')
       setOfferFloating(settings.offerMiniTimerOnShiftStart)
     } catch (reason) {
       props.notify('Не удалось начать смену', reason instanceof Error ? reason.message : undefined, 'danger')
@@ -270,21 +341,17 @@ export function ShiftPage(props: ShiftPageProps) {
           <div className="card timer-card">
             <span className="status-pill">Смена не начата</span>
             <div className="timer-label">Плановая длительность</div>
-            <div className="timer-display">{formatDuration(durationHours * HOUR)}</div>
-            <p className="timer-subtitle">Если начать сейчас, окончание в {formatClock(now + durationHours * HOUR, settings.use24HourTime)}</p>
+            <div className="timer-display">{formatDuration(NIGHT_SHIFT_DURATION_MS)}</div>
+            <p className="timer-subtitle">Ночная смена: с 21:00 до 09:00 следующего дня</p>
             <div className="progress-track"><div className="progress-value" style={{ width: '0%' }} /></div>
-            <div className="progress-copy"><span>Начало</span><span>12 часов по умолчанию</span></div>
+            <div className="progress-copy"><span>21:00</span><span>До 09:00</span></div>
           </div>
           <div className="card start-panel">
             <div>
-              <h2>Продолжительность смены</h2>
-              <p className="muted">Можно изменить только для этой смены. Настройка по умолчанию останется прежней.</p>
-              <div className="duration-picker" role="group" aria-label="Продолжительность смены">
-                {[8, 10, 12].map((hours) => <button key={hours} type="button" className="duration-chip" aria-pressed={durationHours === hours} onClick={() => setDurationHours(hours)}>{hours} часов</button>)}
-                <label className="field" style={{ width: 130 }}><span className="field-label">Другое, ч</span><input type="number" min="1" max="24" step="0.5" value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))} /></label>
-              </div>
+              <h2>Ночная смена</h2>
+              <p className="muted">Фиксированное время: 21:00–09:00. Перерывы и обед идут по расписанию и начнутся только после вашего подтверждения.</p>
             </div>
-            <button className="button button--primary" type="button" disabled={busy || durationHours <= 0} onClick={() => void startShift()}><Icon name="play" />{busy ? 'Запускаем…' : 'Начать смену'}</button>
+            <button className="button button--primary" type="button" disabled={busy} onClick={() => void startShift()}><Icon name="play" />{busy ? 'Запускаем…' : 'Начать смену'}</button>
           </div>
           {lastShift && <div className="card card-pad">
             <div className="section-title"><div><p className="eyebrow">Последняя смена</p><h2>{new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(lastShift.startedAt ?? lastShift.createdAt)}</h2></div><button className="button button--secondary button--small" type="button" onClick={() => props.onOpenCalendar(lastShift)}>Открыть в календаре</button></div>
@@ -299,10 +366,10 @@ export function ShiftPage(props: ShiftPageProps) {
         <div className="section-stack">
           <div className="timer-layout">
             <div className="card timer-card">
-              <span className={`status-pill ${breakOvertime ? 'status-pill--danger' : 'status-pill--active'}`}>{STATUS_LABELS[snapshot.status]}</span>
+              <span className={`status-pill ${breakOvertime ? 'status-pill--danger' : waitingForShiftStart ? '' : 'status-pill--active'}`}>{STATUS_LABELS[snapshot.status]}</span>
               <div className="timer-label">{timerLabel}</div>
               <div className={`timer-display ${breakOvertime ? 'timer-display--danger' : ''}`} aria-label={`${timerLabel} ${formatDuration(timerValue)}`}>{formatDuration(timerValue)}</div>
-              <p className="timer-subtitle">{activeBreak ? `Вернуться в ${formatClock(activeBreak.expectedReturnAt, settings.use24HourTime)} · До конца смены ${formatDuration(snapshot.remainingMs)}` : `Окончание в ${formatClock(snapshot.expectedEndAt, settings.use24HourTime)}`}</p>
+              <p className="timer-subtitle">{timerSubtitle}</p>
               <div className="progress-track" aria-label={`Прогресс смены ${Math.round(snapshot.progress * 100)} процентов`}><div className="progress-value" style={{ width: `${Math.round(snapshot.progress * 100)}%` }} /></div>
               <div className="progress-copy"><span>{Math.round(snapshot.progress * 100)}% смены</span><span>{snapshot.progress >= .5 ? 'Половина смены позади' : 'В рабочем ритме'}</span></div>
             </div>
@@ -316,14 +383,14 @@ export function ShiftPage(props: ShiftPageProps) {
               <div className="card action-card">
                 <h3>Управление сменой</h3>
                 <div className="action-grid">
-                  {activeBreak ? <button className="button button--primary" type="button" disabled={busy} onClick={() => void resumeWork()}><Icon name="play" />Вернуться к работе</button> : <div className="action-row"><button className="button button--secondary" type="button" disabled={busy} onClick={() => openBreak('break')}><Icon name="coffee" />Перерыв</button><button className="button button--secondary" type="button" disabled={busy} onClick={() => openBreak('lunch')}><Icon name="lunch" />Обед</button></div>}
+                  {activeBreak ? <button className="button button--primary" type="button" disabled={busy} onClick={() => void resumeWork()}><Icon name="play" />Вернуться к работе</button> : waitingForShiftStart ? <div className="notice">Смена начнётся в {formatClock(activeShift.startedAt, settings.use24HourTime)}.</div> : <div className="action-row"><button className="button button--secondary" type="button" disabled={busy} onClick={() => openBreak('break')}><Icon name="coffee" />Перерыв</button><button className="button button--secondary" type="button" disabled={busy} onClick={() => openBreak('lunch')}><Icon name="lunch" />Обед</button></div>}
                   <button className="button button--ghost" type="button" onClick={props.onOpenFloating}><Icon name="pip" />Мини-таймер</button>
-                  <button className="button button--ghost" type="button" disabled={busy} onClick={() => settings.confirmShiftFinish ? setFinishOpen(true) : void finish()}><Icon name="stop" />Завершить смену</button>
+                  <button className="button button--ghost" type="button" disabled={busy || waitingForShiftStart} onClick={() => settings.confirmShiftFinish ? setFinishOpen(true) : void finish()}><Icon name="stop" />Завершить смену</button>
                 </div>
               </div>
             </div>
           </div>
-          <div className="card card-pad"><div className="section-title"><h2>Хронология</h2><span className="muted">{activeShift.breaks.length} пауз</span></div><Timeline shift={activeShift} use24Hour={settings.use24HourTime} /></div>
+          <div className="card card-pad"><div className="section-title"><h2>Хронология</h2><span className="muted">{activeShift.breaks.length} пауз</span></div><Timeline shift={activeShift} use24Hour={settings.use24HourTime} now={now} /></div>
         </div>
       )}
 
@@ -333,6 +400,22 @@ export function ShiftPage(props: ShiftPageProps) {
         </div>
         <div className="field" style={{ marginTop: 16 }}><label htmlFor="break-minutes">Длительность вручную, минут</label><input id="break-minutes" type="number" min="1" max="240" value={breakMinutes} onChange={(event) => setBreakMinutes(Number(event.target.value))} /><span className="field-help">Плановое возвращение: {formatClock(now + breakMinutes * MINUTE, settings.use24HourTime)}</span></div>
       </Dialog>
+
+      <Dialog
+        open={scheduledPausePrompt !== null}
+        title={scheduledPausePrompt?.label === 'Обед' ? 'Время для обеда' : 'Время для перерыва'}
+        description={scheduledPausePrompt ? `${scheduledPausePrompt.label} по расписанию: ${formatClock(scheduledPausePrompt.startAt, settings.use24HourTime)}–${formatClock(scheduledPausePrompt.endAt, settings.use24HourTime)}. Он начнётся только после вашего подтверждения.` : ''}
+        onClose={() => {
+          if (!scheduledPausePrompt) return
+          setDismissedScheduledPauseIds((current) => [...current, scheduledPausePrompt.id])
+          setScheduledPausePrompt(null)
+        }}
+        footer={<><button className="button button--secondary" type="button" onClick={() => {
+          if (!scheduledPausePrompt) return
+          setDismissedScheduledPauseIds((current) => [...current, scheduledPausePrompt.id])
+          setScheduledPausePrompt(null)
+        }}>Не сейчас</button><button className="button button--primary" type="button" disabled={busy} onClick={() => void startScheduledPause()}>Начать {scheduledPausePrompt?.label.toLowerCase()}</button></>}
+      ><div className="notice">Перерыв не запускается сам: подтвердите его, когда будете готовы.</div></Dialog>
 
       <Dialog open={finishOpen} danger title="Завершить смену?" description={activeBreak ? 'Текущий перерыв будет завершён тем же временем.' : 'После подтверждения смена перейдёт в историю, а итог можно будет дополнить.'} onClose={() => setFinishOpen(false)} footer={<><button className="button button--secondary" type="button" onClick={() => setFinishOpen(false)}>Продолжить работу</button><button className="button button--danger" type="button" disabled={busy} onClick={() => void finish()}>{busy ? 'Сохраняем…' : 'Завершить смену'}</button></>}>
         {activeShift && <div className="summary-grid"><div className="summary-item"><span>Завершение</span><strong>{formatClock(now, settings.use24HourTime)}</strong></div><div className="summary-item"><span>Чистая работа</span><strong>{formatDuration(snapshot.netWorkMs)}</strong></div><div className="summary-item"><span>{snapshot.overtimeMs ? 'Переработка' : 'Недоработка'}</span><strong>{formatDuration(snapshot.overtimeMs || Math.max(0, activeShift.plannedDurationMs - snapshot.elapsedMs))}</strong></div></div>}
