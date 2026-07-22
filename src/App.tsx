@@ -4,13 +4,9 @@ import { getTimerSnapshot } from './domain'
 import type { Shift } from './domain'
 import {
   capturePwaInstallPrompt,
-  deliverUserAlert,
-  getNotificationCapability,
   getPwaCapability,
-  LocalSoundPlayer,
   openFloatingTimerWindow,
   registerLocalServiceWorker,
-  requestNotificationPermission,
   type FloatingTimerWindow,
   type PwaInstallController,
 } from './platform'
@@ -20,12 +16,10 @@ import { MiniTimer } from './app/MiniTimer'
 import { SettingsPage } from './app/SettingsPage'
 import { ShiftPage } from './app/ShiftPage'
 import { StatisticsPage } from './app/StatisticsPage'
-import type { AppPage, ToastMessage } from './app/types'
+import type { AppPage } from './app/types'
 import { useAppController } from './app/useAppController'
 import { Icon, type IconName } from './ui/Icon'
 import { downloadText, formatClock, formatDateLong } from './ui/format'
-
-const MINUTE = 60_000
 
 const NAVIGATION: { id: AppPage; label: string; icon: IconName }[] = [
   { id: 'shift', label: 'Смена', icon: 'timer' },
@@ -46,30 +40,18 @@ function serviceWorkerScriptUrl(): string {
   return `/sw.js?v=${encodeURIComponent(buildId ?? 'local')}`
 }
 
-function Toasts({ messages }: { messages: ToastMessage[] }) {
-  return <div className="toast-region" role="status" aria-live="polite">{messages.map((message) => <div className="toast" key={message.id}><Icon name={message.tone === 'danger' ? 'info' : 'check'} /><div><strong>{message.title}</strong>{message.description && <span>{message.description}</span>}</div></div>)}</div>
-}
-
 export function App() {
   const controller = useAppController()
   const [page, setPage] = useState<AppPage>(initialPage)
   const [calendarFocus, setCalendarFocus] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [floating, setFloating] = useState<FloatingTimerWindow | null>(null)
-  const [notificationPermission, setNotificationPermission] = useState(getNotificationCapability().permission)
   const [canInstallPwa, setCanInstallPwa] = useState(false)
   const [updateReady, setUpdateReady] = useState<(() => boolean) | null>(null)
   const installController = useRef<PwaInstallController | null>(null)
-  const soundPlayer = useRef<LocalSoundPlayer | null>(null)
-  const remindersSent = useRef(new Set<string>())
   const forcePopupNext = useRef(false)
 
-  const notify = useCallback((title: string, description?: string, tone: ToastMessage['tone'] = 'success') => {
-    const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-    setToasts((current) => [...current.slice(-3), { id, title, description, tone }])
-    window.setTimeout(() => setToasts((current) => current.filter((message) => message.id !== id)), 5200)
-  }, [])
+  const notify = useCallback((_title: string, _description?: string, _tone?: 'success' | 'warning' | 'danger') => undefined, [])
 
   useEffect(() => {
     const update = () => setNow(Date.now())
@@ -92,40 +74,10 @@ export function App() {
       void registerLocalServiceWorker({
         scriptUrl: serviceWorkerScriptUrl(),
         onUpdateReady: (_registration, activate) => { if (!disposed) setUpdateReady(() => activate) },
-        onOfflineReady: () => notify('Приложение готово к работе офлайн'),
-        onError: () => notify('Не удалось включить офлайн-режим', 'Основные данные по-прежнему доступны в этой вкладке.', 'warning'),
       }).then((registration) => { if (disposed) registration.dispose(); else disposeServiceWorker = registration.dispose }).catch(() => undefined)
     }
     return () => { disposed = true; disposeServiceWorker?.(); installController.current?.dispose() }
   }, [notify])
-
-  const inAppAlert = useCallback((notification: { title: string; body: string }) => notify(notification.title, notification.body, 'warning'), [notify])
-
-  useEffect(() => {
-    const shift = controller.activeShift
-    if (!shift || !controller.settings.preliminaryReminders) return
-    const snapshot = getTimerSnapshot(shift, now)
-    let alert: { key: string; title: string; body: string; sound: 'reminder' | 'warning' } | null = null
-    if (snapshot.activeBreak) {
-      const pause = snapshot.activeBreak
-      if (pause.overtimeMs > 0) {
-        alert = { key: `${pause.breakId}:overdue`, title: 'Пора вернуться к работе', body: `${pause.type === 'lunch' ? 'Обед' : 'Перерыв'} уже закончился.`, sound: 'warning' }
-      } else {
-        const lead = [...controller.settings.notificationLeadMinutes].sort((a,b) => a-b).find((minutes) => pause.remainingMs <= minutes * MINUTE)
-        if (lead !== undefined) alert = { key: `${pause.breakId}:lead:${lead}`, title: `${pause.type === 'lunch' ? 'Обед' : 'Перерыв'} заканчивается`, body: `До возвращения ${lead} ${lead === 1 ? 'минута' : 'минут'}.`, sound: 'reminder' }
-      }
-    } else if (snapshot.remainingMs === 0) {
-      alert = { key: `${shift.id}:shift-ended`, title: 'Плановое время смены закончилось', body: 'Завершите смену, чтобы сохранить результат.', sound: 'warning' }
-    }
-    if (!alert || remindersSent.current.has(alert.key)) return
-    remindersSent.current.add(alert.key)
-    if (controller.settings.systemNotifications) {
-      void deliverUserAlert({ title: alert.title, body: alert.body, tag: alert.key }, { sound: controller.settings.soundEnabled ? alert.sound : false, volume: controller.settings.soundVolume, inAppFallback: inAppAlert }).catch(() => inAppAlert({ title: alert.title, body: alert.body }))
-    } else {
-      inAppAlert({ title: alert.title, body: alert.body })
-      if (controller.settings.soundEnabled) void (soundPlayer.current ??= new LocalSoundPlayer()).play(alert.sound, controller.settings.soundVolume).catch(() => undefined)
-    }
-  }, [controller.activeShift, controller.settings, now, inAppAlert])
 
   const lastCompleted = useMemo(() => controller.shifts.find((shift) => shift.status === 'completed') ?? null, [controller.shifts])
   const floatingShift: Shift | null = controller.activeShift ?? lastCompleted
@@ -166,11 +118,10 @@ export function App() {
         {page === 'shift' && <ShiftPage activeShift={controller.activeShift} lastShift={lastCompleted} settings={controller.settings} now={now} busy={controller.busy} onStartShift={controller.startShift} onStartBreak={controller.startBreak} onResumeWork={controller.resumeWork} onFinishShift={controller.finishShift} onSaveShift={controller.saveShift} onOpenFloating={() => void openFloating()} onOpenCalendar={openCalendar} notify={notify} />}
         {page === 'calendar' && <CalendarPage shifts={controller.shifts} settings={controller.settings} focusShiftId={calendarFocus} onSave={controller.saveShift} onDelete={controller.deleteShift} notify={notify} />}
         {page === 'statistics' && <StatisticsPage shifts={controller.shifts} settings={controller.settings} onOpenShift={() => setPage('shift')} />}
-        {page === 'settings' && <SettingsPage settings={controller.settings} notificationPermission={notificationPermission} pwaCapability={getPwaCapability()} canInstallPwa={canInstallPwa} onInstallPwa={async () => { const outcome = await installController.current?.prompt(); if (outcome === 'accepted') notify('Приложение установлено') }} onSave={controller.updateSettings} onRequestNotifications={async () => { const capability = await requestNotificationPermission(); setNotificationPermission(capability.permission); notify(capability.permission === 'granted' ? 'Уведомления разрешены' : 'Уведомления не разрешены', capability.permission === 'denied' ? 'Изменить разрешение можно в настройках браузера.' : undefined, capability.permission === 'granted' ? 'success' : 'warning') }} onTestNotification={async () => { await deliverUserAlert({ title: 'Моя смена', body: 'Тестовое уведомление работает.', tag: 'moya-smena-test' }, { sound: false, inAppFallback: inAppAlert }); setNotificationPermission(getNotificationCapability().permission) }} onTestSound={async () => { const played = await (soundPlayer.current ??= new LocalSoundPlayer()).play('success', controller.settings.soundVolume); notify(played ? 'Звуковой сигнал работает' : 'Браузер не разрешил звук', played ? undefined : 'Нажмите ещё раз или проверьте системную громкость.', played ? 'success' : 'warning') }} onExportBackup={async () => downloadText(`moya-smena-backup-${new Date().toISOString().slice(0,10)}.json`, await controller.exportBackup(), 'application/json;charset=utf-8')} onExportCsv={async () => downloadText(`moya-smena-${new Date().toISOString().slice(0,10)}.csv`, `\uFEFF${await controller.exportCsv()}`, 'text/csv;charset=utf-8')} onPreviewImport={controller.previewImport} onImport={controller.importBackup} onClearAll={controller.clearAllData} notify={notify} />}
+        {page === 'settings' && <SettingsPage settings={controller.settings} pwaCapability={getPwaCapability()} canInstallPwa={canInstallPwa} onInstallPwa={async () => { await installController.current?.prompt() }} onSave={controller.updateSettings} onExportBackup={async () => downloadText(`moya-smena-backup-${new Date().toISOString().slice(0,10)}.json`, await controller.exportBackup(), 'application/json;charset=utf-8')} onExportCsv={async () => downloadText(`moya-smena-${new Date().toISOString().slice(0,10)}.csv`, `\uFEFF${await controller.exportCsv()}`, 'text/csv;charset=utf-8')} onPreviewImport={controller.previewImport} onImport={controller.importBackup} onClearAll={controller.clearAllData} notify={notify} />}
         {page === 'about' && <AboutPage />}
       </main>
     </div>
-    <Toasts messages={toasts} />
     {floating && floatingShift && !floating.isClosed() && createPortal(<MiniTimer shift={floatingShift} now={now} />, floating.container)}
   </>
 }
