@@ -8,14 +8,10 @@ import { formatBoRate, formatDate, formatMoney } from '../ui/format'
 
 interface SettingsPageProps {
   settings: AppSettings
-  notificationPermission: NotificationPermission | 'unsupported'
   pwaCapability: PwaCapability
   canInstallPwa: boolean
   onInstallPwa: () => Promise<void>
   onSave: (settings: AppSettings) => Promise<void>
-  onRequestNotifications: () => Promise<void>
-  onTestNotification: () => Promise<void>
-  onTestSound: () => Promise<void>
   onExportBackup: () => Promise<void>
   onExportCsv: () => Promise<void>
   onPreviewImport: (json: string) => ImportPreview
@@ -75,7 +71,7 @@ export function SettingsPage(props: SettingsPageProps) {
 
   return (
     <section className="page" aria-labelledby="settings-title">
-      <header className="page-header"><div><p className="eyebrow">Под ваши правила</p><h1 id="settings-title">Настройки</h1><p>Смена, уведомления, внешний вид и локальные данные.</p></div><button className="button button--primary" type="button" disabled={saving} onClick={() => void save()}><Icon name="check" />{saving ? 'Сохраняем…' : 'Сохранить настройки'}</button></header>
+      <header className="page-header"><div><p className="eyebrow">Под ваши правила</p><h1 id="settings-title">Настройки</h1><p>Смена, внешний вид и локальные данные.</p></div><button className="button button--primary" type="button" disabled={saving} onClick={() => void save()}><Icon name="check" />{saving ? 'Сохраняем…' : 'Сохранить настройки'}</button></header>
       <div className="settings-grid">
         <div className="card settings-section"><div className="section-title"><div><p className="eyebrow">Рабочий день</p><h2>Смена и перерывы</h2></div><Icon name="timer" width="22" /></div><div className="settings-list">
           <div className="form-grid"><div className="field"><label htmlFor="setting-shift">Смена, часов</label><input id="setting-shift" type="number" min="1" max="36" step="0.5" value={draft.standardShiftDurationMs / HOUR} onChange={(event) => patch('standardShiftDurationMs', Number(event.target.value) * HOUR)} /></div><div className="field"><label htmlFor="setting-break">Перерыв, минут</label><input id="setting-break" type="number" min="1" max="240" value={draft.standardBreakDurationMs / MINUTE} onChange={(event) => patch('standardBreakDurationMs', Number(event.target.value) * MINUTE)} /></div><div className="field"><label htmlFor="setting-lunch">Обед, минут</label><input id="setting-lunch" type="number" min="1" max="240" value={draft.standardLunchDurationMs / MINUTE} onChange={(event) => patch('standardLunchDurationMs', Number(event.target.value) * MINUTE)} /></div></div>
@@ -84,16 +80,6 @@ export function SettingsPage(props: SettingsPageProps) {
           <Switch checked={draft.extendShiftByBreaks} onChange={(value) => patch('extendShiftByBreaks', value)} title="Продлевать смену на перерывы" description="Окончание сдвигается на фактическую длительность пауз" />
           <Switch checked={draft.confirmShiftFinish} onChange={(value) => patch('confirmShiftFinish', value)} title="Подтверждать завершение" description="Защита от случайного нажатия" />
           <Switch checked={draft.offerMiniTimerOnShiftStart} onChange={(value) => patch('offerMiniTimerOnShiftStart', value)} title="Предлагать мини-таймер" description="После запуска новой смены" />
-        </div></div>
-
-        <div className="card settings-section"><div className="section-title"><div><p className="eyebrow">Напоминания</p><h2>Уведомления и звук</h2></div><Icon name="bell" width="22" /></div><div className="settings-list">
-          <Switch checked={draft.systemNotifications} onChange={(value) => patch('systemNotifications', value)} title="Системные уведомления" description={props.notificationPermission === 'granted' ? 'Разрешены браузером' : props.notificationPermission === 'denied' ? 'Запрещены браузером; останутся сообщения внутри приложения' : 'Разрешение ещё не запрошено'} />
-          {props.notificationPermission !== 'granted' && props.notificationPermission !== 'unsupported' && <button className="button button--secondary" type="button" onClick={() => void runAction(props.onRequestNotifications, 'Не удалось запросить разрешение')}>Разрешить уведомления</button>}
-          <Switch checked={draft.preliminaryReminders} onChange={(value) => patch('preliminaryReminders', value)} title="Предварительные напоминания" description={`За ${draft.notificationLeadMinutes.join(' и ')} минут до конца`} />
-          <Switch checked={draft.soundEnabled} onChange={(value) => patch('soundEnabled', value)} title="Звуковой сигнал" description="Локальный звук без внешних файлов" />
-          <div className="field"><label htmlFor="sound-volume">Громкость: {Math.round(draft.soundVolume * 100)}%</label><input id="sound-volume" type="range" min="0" max="1" step="0.05" value={draft.soundVolume} onChange={(event) => patch('soundVolume', Number(event.target.value))} /></div>
-          <div className="action-row"><button className="button button--secondary button--small" type="button" onClick={() => void runAction(props.onTestNotification, 'Не удалось показать уведомление')}><Icon name="bell" />Тест</button><button className="button button--secondary button--small" type="button" onClick={() => void runAction(props.onTestSound, 'Не удалось воспроизвести звук')}><Icon name="volume" />Проверить звук</button></div>
-          {props.notificationPermission === 'denied' && <div className="notice notice--warning">Уведомления запрещены настройками браузера. Приложение продолжит показывать напоминания внутри открытого окна.</div>}
         </div></div>
 
         <div className="card settings-section"><div className="section-title"><div><p className="eyebrow">Интерфейс</p><h2>Внешний вид</h2></div><Icon name="sun" width="22" /></div><div className="settings-list">
