@@ -1,4 +1,4 @@
-import { getNextNightShiftPause, getTimerSnapshot } from '../domain'
+import { getTimerSnapshot } from '../domain'
 import type { Shift } from '../domain'
 import { formatDuration } from '../ui/format'
 
@@ -11,17 +11,11 @@ export function MiniTimer({ shift, now }: MiniTimerProps) {
   const snapshot = getTimerSnapshot(shift, now)
   const pause = snapshot.activeBreak
   const pauseOvertime = (pause?.overtimeMs ?? 0) > 0
-  const completed = snapshot.status === 'completed'
-  const shiftStartAt = shift.startedAt
-  const waitingForShiftStart = shiftStartAt !== null && now < shiftStartAt
-  const scheduledPause = pause || completed ? null : getNextNightShiftPause(shift, now)
-  const value = completed
+  const value = snapshot.status === 'completed'
     ? snapshot.overtimeMs || snapshot.undertimeMs
     : pause
     ? pauseOvertime ? pause.overtimeMs : pause.remainingMs
-    : waitingForShiftStart ? shiftStartAt - now
     : snapshot.status === 'overtime' ? snapshot.overtimeMs : snapshot.remainingMs
-  const nextPauseName = scheduledPause?.type === 'lunch' ? 'обеда' : 'перерыва'
 
   return (
     <div className="mini-timer">
@@ -32,11 +26,7 @@ export function MiniTimer({ shift, now }: MiniTimerProps) {
             ? pauseOvertime
               ? 'Пора вернуться к работе'
               : `До возвращения — ${formatDuration(pause.remainingMs)}`
-            : scheduledPause
-              ? scheduledPause.startAt <= now
-                ? `Время: ${scheduledPause.label.toLowerCase()} — подтвердите на сайте`
-                : `До ${nextPauseName} — ${formatDuration(scheduledPause.startAt - now)}`
-              : 'Перерывы по расписанию завершены'}
+            : 'Перерыв и обед запускаются вручную'}
         </p>
       </div>
     </div>
