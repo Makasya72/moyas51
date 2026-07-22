@@ -1,6 +1,5 @@
 export * from './calculations'
 export * from './defaults'
 export * from './import-validation'
-export * from './nightShiftSchedule'
 export * from './transitions'
 export * from './types'
