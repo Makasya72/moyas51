@@ -80,12 +80,15 @@ export function useAppController(): AppController {
     shifts,
     activeShift,
     settings,
-    startShift: () => mutate(() => {
+    startShift: (plannedDurationMs) => mutate(() => {
       const now = Date.now()
+      const duration = Number.isFinite(plannedDurationMs) && (plannedDurationMs ?? 0) > 0
+        ? Math.round(plannedDurationMs ?? settings.standardShiftDurationMs)
+        : settings.standardShiftDurationMs
       return repository.startShift({
         at: now,
         plannedStartAt: now,
-        plannedDurationMs: settings.standardShiftDurationMs,
+        plannedDurationMs: duration,
         extendByBreaks: settings.extendShiftByBreaks,
       })
     }),
