@@ -87,6 +87,7 @@ describe('Document Picture-in-Picture opening', () => {
     expect(floating.mode).toBe('document-picture-in-picture')
     expect(floating.container.id).toBe('moya-smena-mini-timer')
     expect(targetDocument.head.textContent).toContain('.timer-test-style')
+    expect(targetDocument.head.textContent).toContain('color: #f6f6f2')
     expect(floating.styleTransfer.copiedNodes).toBeGreaterThan(0)
     style.remove()
   })
