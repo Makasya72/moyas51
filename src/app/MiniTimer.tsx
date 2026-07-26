@@ -18,10 +18,45 @@ export function MiniTimer({ shift, now }: MiniTimerProps) {
     : snapshot.status === 'overtime' ? snapshot.overtimeMs : snapshot.remainingMs
 
   return (
-    <div className="mini-timer">
-      <div className="mini-timer-main">
-        <div className={`timer-display ${pauseOvertime ? 'timer-display--danger' : ''}`}>{formatDuration(value)}</div>
-        <p className="timer-subtitle">
+    <div
+      className="mini-timer"
+      style={{
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        margin: 0,
+        padding: '8px',
+        backgroundColor: '#191919',
+        color: '#f6f6f2',
+        fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <div className="mini-timer-main" style={{ margin: 'auto 0' }}>
+        <div
+          className={`timer-display ${pauseOvertime ? 'timer-display--danger' : ''}`}
+          style={{
+            color: pauseOvertime ? '#ff6b66' : '#f6f6f2',
+            fontSize: '34px',
+            fontWeight: 780,
+            lineHeight: 1,
+            letterSpacing: '-0.065em',
+            fontVariantNumeric: 'tabular-nums',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatDuration(value)}
+        </div>
+        <p
+          className="timer-subtitle"
+          style={{
+            margin: '4px 0 0',
+            color: '#c9c9c3',
+            fontSize: '10px',
+            fontWeight: 600,
+            lineHeight: 1.3,
+          }}
+        >
           {pause
             ? pauseOvertime
               ? 'Пора вернуться к работе'
