@@ -17,7 +17,7 @@ interface ShiftPageProps {
   settings: AppSettings
   now: number
   busy: boolean
-  onStartShift: () => Promise<Shift>
+  onStartShift: (plannedDurationMs?: number) => Promise<Shift>
   onStartBreak: (type: BreakType, durationMs: number) => Promise<Shift>
   onResumeWork: () => Promise<Shift>
   onFinishShift: () => Promise<Shift>
@@ -28,6 +28,7 @@ interface ShiftPageProps {
 }
 
 const MINUTE = 60_000
+const HOUR = 60 * MINUTE
 
 const STATUS_LABELS = {
   not_started: 'Смена не начата',
@@ -197,6 +198,8 @@ export function ShiftPage(props: ShiftPageProps) {
   const [breakType, setBreakType] = useState<BreakType | null>(null)
   const [breakMinutes, setBreakMinutes] = useState(15)
   const [finishOpen, setFinishOpen] = useState(false)
+  const [startOpen, setStartOpen] = useState(false)
+  const [shiftHours, setShiftHours] = useState(settings.standardShiftDurationMs / HOUR)
   const [summaryShift, setSummaryShift] = useState<Shift | null>(null)
   const [offerFloating, setOfferFloating] = useState(false)
 
@@ -247,9 +250,16 @@ export function ShiftPage(props: ShiftPageProps) {
       props.notify('Не удалось завершить смену', reason instanceof Error ? reason.message : undefined, 'danger')
     }
   }
+  const openStartDialog = () => {
+    setShiftHours(settings.standardShiftDurationMs / HOUR)
+    setStartOpen(true)
+  }
   const startShift = async () => {
+    const plannedDurationMs = Math.round(shiftHours * HOUR)
+    if (!Number.isFinite(plannedDurationMs) || plannedDurationMs <= 0) return
     try {
-      await props.onStartShift()
+      await props.onStartShift(plannedDurationMs)
+      setStartOpen(false)
       props.notify('Смена начата')
       setOfferFloating(settings.offerMiniTimerOnShiftStart)
     } catch (reason) {
@@ -287,7 +297,7 @@ export function ShiftPage(props: ShiftPageProps) {
               <h2>Новая смена</h2>
               <p className="muted">Смена начнётся в момент нажатия кнопки. Перерывы и обед запускаются вручную, когда вам нужно.</p>
             </div>
-            <button className="button button--primary" type="button" disabled={busy} onClick={() => void startShift()}><Icon name="play" />{busy ? 'Запускаем…' : 'Начать смену'}</button>
+            <button className="button button--primary" type="button" disabled={busy} onClick={openStartDialog}><Icon name="play" />Начать смену</button>
           </div>
           {lastShift && <div className="card card-pad">
             <div className="section-title"><div><p className="eyebrow">Последняя смена</p><h2>{new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(lastShift.startedAt ?? lastShift.createdAt)}</h2></div><button className="button button--secondary button--small" type="button" onClick={() => props.onOpenCalendar(lastShift)}>Открыть в календаре</button></div>
@@ -329,6 +339,10 @@ export function ShiftPage(props: ShiftPageProps) {
           <div className="card card-pad"><div className="section-title"><h2>Хронология</h2><span className="muted">{activeShift.breaks.length} пауз</span></div><Timeline shift={activeShift} use24Hour={settings.use24HourTime} now={now} /></div>
         </div>
       )}
+
+      <Dialog open={startOpen} title="Начать смену" description="Укажите, сколько должна длиться эта смена. Время начала будет зафиксировано в момент запуска." onClose={() => setStartOpen(false)} footer={<><button className="button button--secondary" type="button" onClick={() => setStartOpen(false)}>Отмена</button><button className="button button--primary" type="button" disabled={busy || !Number.isFinite(shiftHours) || shiftHours <= 0} onClick={() => void startShift()}><Icon name="play" />{busy ? 'Запускаем…' : 'Начать смену'}</button></>}>
+        <div className="field"><label htmlFor="shift-hours">Длительность смены, часов</label><input id="shift-hours" type="number" min="0.25" step="0.25" inputMode="decimal" value={shiftHours} onChange={(event) => setShiftHours(Number(event.target.value))} /><span className="field-help">Плановое завершение: {formatClock(now + Math.max(0, shiftHours || 0) * HOUR, settings.use24HourTime)}</span></div>
+      </Dialog>
 
       <Dialog open={breakType !== null} title={breakType === 'lunch' ? 'Начать обед' : 'Начать перерыв'} description="Выберите плановую длительность. Таймер продолжит считать превышение, если вы не вернётесь вовремя." onClose={() => setBreakType(null)} footer={<><button className="button button--secondary" type="button" onClick={() => setBreakType(null)}>Отмена</button><button className="button button--primary" type="button" disabled={busy || breakMinutes <= 0} onClick={() => void startBreak()}>Начать</button></>}>
         <div className="duration-picker">
