@@ -272,6 +272,32 @@ function prepareDocument(
     html, body { width: 100%; height: 100%; min-width: 0 !important; min-height: 0 !important; margin: 0; overflow: hidden !important; }
     body { background: #191919; }
     #${options.containerId}, #${options.containerId} .mini-timer { width: 100%; height: 100%; min-height: 0; }
+    #${options.containerId} .mini-timer {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      padding: 8px;
+      color: #f6f6f2;
+      background: #191919;
+      font: 600 12px/1.3 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    #${options.containerId} .mini-timer-main { margin: auto 0; }
+    #${options.containerId} .mini-timer .timer-display {
+      color: #f6f6f2;
+      font-size: clamp(18px, 10.5vw, 34px);
+      font-weight: 780;
+      line-height: 1;
+      letter-spacing: -0.065em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    #${options.containerId} .mini-timer .timer-display--danger { color: #ff6b66; }
+    #${options.containerId} .mini-timer .timer-subtitle {
+      margin: 4px 0 0;
+      color: #c9c9c3;
+      font-size: 10px;
+      line-height: 1.3;
+    }
     .floating-window-limitation {
       box-sizing: border-box;
       margin: 0;
