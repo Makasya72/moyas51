@@ -9,7 +9,7 @@ export interface AppController {
   shifts: Shift[]
   activeShift: Shift | null
   settings: AppSettings
-  startShift(): Promise<Shift>
+  startShift(plannedDurationMs?: number): Promise<Shift>
   startBreak(type: 'break' | 'lunch', durationMs: number): Promise<Shift>
   resumeWork(): Promise<Shift>
   finishShift(): Promise<Shift>
